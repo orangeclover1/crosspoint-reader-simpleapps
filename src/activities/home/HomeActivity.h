@@ -24,6 +24,7 @@ class HomeActivity final : public Activity {
   void onFileBrowserOpen();
   void onRecentsOpen();
   void onSettingsOpen();
+  void onSimpleAppsOpen();
   void onFileTransferOpen();
   void onOpdsBrowserOpen();
 
