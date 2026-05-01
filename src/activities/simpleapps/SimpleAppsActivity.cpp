@@ -4,7 +4,7 @@
 #include <SD.h>
 #include <esp_system.h>
 
-#include <ArduinoJson.hpp>   // REQUIRED
+
 
 #include <algorithm>
 #include <cstdio>
