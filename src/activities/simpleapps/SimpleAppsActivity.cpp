@@ -21,24 +21,27 @@ void SimpleAppsActivity::loadApps() {
 
   auto dir = Storage.open("/apps");
 
-  if (dir && dir.isDirectory()) {
+  if (!dir || !dir.isDirectory()) {
+    return;
+  }
 
-    char name[256];
+  char name[256];
 
-    for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
+  for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
 
-      if (file.isDirectory()) continue;
+    if (!file || file.isDirectory()) continue;
 
-      file.getName(name, sizeof(name));
+    file.getName(name, sizeof(name));
 
-      std::string filename(name);
+    std::string filename(name);
 
-      if (filename.find(".simpleapp.json") != std::string::npos) {
-        apps.push_back(filename);
-      }
+    if (filename.find(".simpleapp.json") != std::string::npos) {
+      apps.push_back(filename);
     }
   }
 }
+
+
 
 bool SimpleAppsActivity::loadApp(const std::string& filename) {
   currentApp.clear();
@@ -51,7 +54,8 @@ bool SimpleAppsActivity::loadApp(const std::string& filename) {
     return false;
   }
 
-  return !deserializeJson(currentApp, file);
+  DeserializationError err = deserializeJson(currentApp, file);
+  return !err;
 }
 
 void SimpleAppsActivity::loop() {
