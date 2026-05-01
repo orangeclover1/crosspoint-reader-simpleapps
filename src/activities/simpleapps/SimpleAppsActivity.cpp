@@ -113,41 +113,152 @@ void SimpleAppsActivity::loop() {
   else if (type == "random_draw") {
 
     JsonArray items = currentApp["items"];
+    JsonArray modes = currentApp["drawModes"];
+
     bool reversedEnabled = currentApp["allowReversed"] | false;
 
     if (items.size() == 0) return;
 
-    int idx = random(items.size());
-    JsonObject card = items[idx];
+    // Default = single card
+    int drawCount = 1;
 
-    const char* name = card["name"];
-    const char* symbol = card["symbol"];
-    const char* upright = card["upright"];
-    const char* reversed = card["reversed"];
-
-    bool isReversed = reversedEnabled && random(2) == 1;
-
-    // ===== DRAW CARD =====
-    renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 40, name, true);
-    renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 120, symbol, true);
-
-    const char* meaning = isReversed ? reversed : upright;
-
-    // Split text manually into lines
-    int y = 200;
-    std::string text = meaning;
-    int maxLen = 28;
-
-    for (size_t i = 0; i < text.length(); i += maxLen) {
-      std::string line = text.substr(i, maxLen);
-      renderer.drawText(NOTOSANS_16_FONT_ID, 20, y, line.c_str(), true);
-      y += 30;
+    if (modes.size() > 0) {
+      drawCount = modes[0]["count"] | 1;
     }
 
-    if (isReversed) {
-      renderer.drawCenteredText(NOTOSANS_12_FONT_ID, 170, "(Reversed)", true);
+    // If more than 1 mode, use second (3-card)
+    if (modes.size() > 1) {
+      drawCount = modes[1]["count"] | 3;
+    }
+
+    // ===== DRAW UNIQUE CARDS =====
+    std::vector<int> used;
+    std::vector<JsonObject> cards;
+    std::vector<bool> reversedFlags;
+
+    for (int i = 0; i < drawCount; i++) {
+      int idx = random(items.size());
+
+      while (std::find(used.begin(), used.end(), idx) != used.end()) {
+        idx = random(items.size());
+      }
+
+      used.push_back(idx);
+      cards.push_back(items[idx]);
+      reversedFlags.push_back(reversedEnabled && random(2) == 1);
+    }
+
+    int screenW = renderer.getScreenWidth();
+
+    // =========================
+    // SINGLE CARD (unchanged)
+    // =========================
+    if (drawCount == 1) {
+
+      JsonObject card = cards[0];
+      bool isReversed = reversedFlags[0];
+
+      const char* name = card["name"];
+      const char* symbol = card["symbol"];
+      const char* meaning = isReversed ? card["reversed"] : card["upright"];
+
+      renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 30, name, true);
+
+      int boxW = 160;
+      int boxH = 200;
+      int boxX = (screenW - boxW) / 2;
+      int boxY = 80;
+
+      renderer.drawRect(boxX, boxY, boxW, boxH, 2, true);
+      renderer.drawRect(boxX + 8, boxY + 8, boxW - 16, boxH - 16, true);
+
+      int symbolWidth = renderer.getTextWidth(NOTOSANS_18_FONT_ID, symbol);
+      renderer.drawText(NOTOSANS_18_FONT_ID, boxX + (boxW - symbolWidth) / 2, boxY + 70, symbol, true);
+
+      if (isReversed) {
+        renderer.drawCenteredText(NOTOSANS_12_FONT_ID, boxY + boxH - 30, "Reversed", true);
+      }
+
+      int y = boxY + boxH + 30;
+      auto lines = renderer.wrappedText(UI_12_FONT_ID, meaning, screenW - 40, 5);
+
+      for (auto& line : lines) {
+        renderer.drawText(UI_12_FONT_ID, 20, y, line.c_str(), true);
+        y += 22;
+      }
+    }
+
+    // =========================
+    // THREE CARD SPREAD
+    // =========================
+    else {
+
+      const char* labels[3] = { "Past", "Present", "Future" };
+
+      int cardW = 120;
+      int cardH = 140;
+      int spacing = 20;
+
+      int totalWidth = (cardW * 3) + (spacing * 2);
+      int startX = (screenW - totalWidth) / 2;
+
+      int topY = 90;
+
+      // ===== DRAW CARDS =====
+      for (int i = 0; i < 3; i++) {
+
+        int x = startX + i * (cardW + spacing);
+
+        JsonObject card = cards[i];
+        bool isReversed = reversedFlags[i];
+
+        const char* symbol = card["symbol"];
+
+        // Label
+        renderer.drawCenteredText(UI_12_FONT_ID, topY - 20 + i * 0, labels[i], true);
+
+        // Box
+        renderer.drawRect(x, topY, cardW, cardH, 2, true);
+        renderer.drawRect(x + 6, topY + 6, cardW - 12, cardH - 12, true);
+
+        // Symbol
+        int sw = renderer.getTextWidth(NOTOSANS_18_FONT_ID, symbol);
+        renderer.drawText(NOTOSANS_18_FONT_ID, x + (cardW - sw) / 2, topY + 50, symbol, true);
+
+        // Reversed marker
+        if (isReversed) {
+          renderer.drawCenteredText(NOTOSANS_12_FONT_ID, topY + cardH - 25, "v", true);
+        }
+      }
+
+      // ===== MEANINGS =====
+      int y = topY + cardH + 30;
+
+      for (int i = 0; i < 3; i++) {
+
+        JsonObject card = cards[i];
+        bool isReversed = reversedFlags[i];
+
+        const char* name = card["name"];
+        const char* meaning = isReversed ? card["reversed"] : card["upright"];
+
+        std::string header = std::string(labels[i]) + ": " + name;
+
+        renderer.drawText(NOTOSANS_16_FONT_ID, 20, y, header.c_str(), true);
+        y += 25;
+
+        auto lines = renderer.wrappedText(UI_12_FONT_ID, meaning, screenW - 40, 2);
+
+        for (auto& line : lines) {
+          renderer.drawText(UI_12_FONT_ID, 30, y, line.c_str(), true);
+          y += 20;
+        }
+
+        y += 10;
+      }
     }
   }
+
 
   else {
     renderer.drawCenteredText(NOTOSANS_16_FONT_ID, 200, "Unsupported app", true);
