@@ -12,7 +12,7 @@ class SimpleAppsActivity final:public Activity{
   ButtonNavigator buttonNavigator;
   SimpleAppsMode mode=SimpleAppsMode::AppList;
   std::vector<SimpleAppEntry> apps;
-  JsonDocument currentApp;
+  ArduinoJson::JsonDocument currentApp{8192};
   int selectedApp=0,selectedAction=0,selectedResult=0;
   std::vector<SimpleDrawResult> drawResults;
   uint32_t seed=1;
