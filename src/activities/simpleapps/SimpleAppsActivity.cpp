@@ -11,6 +11,9 @@
 #include "EpdFontFamily.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "../Activity.h"
+#include "util/ButtonNavigator.h"
+
 
 namespace {
 constexpr const char* APPS_DIR = "/apps";

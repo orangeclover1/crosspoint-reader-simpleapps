@@ -1,10 +1,8 @@
 #pragma once
-#include <ArduinoJson.h>
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "../Activity.h"
-#include "util/ButtonNavigator.h"
+
 
 struct SimpleAppEntry{std::string name;std::string path;std::string type;};
 struct SimpleDrawResult{int itemIndex=0;bool reversed=false;};
