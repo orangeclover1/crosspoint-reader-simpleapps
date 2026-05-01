@@ -17,7 +17,7 @@ void SimpleAppsActivity::onEnter() {
 void SimpleAppsActivity::loadApps() {
   apps.clear();
 
-  fs::File root = SD.open("/apps");
+  fs::File root = SD.open("/home/apps");
   if (!root || !root.isDirectory()) return;
 
   fs::File file = root.openNextFile();
@@ -61,7 +61,7 @@ void SimpleAppsActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
   if (apps.empty()) return;
 
-  std::string path = "/apps/" + apps[selected];
+  std::string path = "/home/apps/" + apps[selected];
 
   if (!loadApp(path)) return;
 
