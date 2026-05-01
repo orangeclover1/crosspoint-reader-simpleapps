@@ -4,6 +4,7 @@
 #include <FS.h>
 #include <SD.h>
 #include <ArduinoJson.hpp>
+#include <HalStorage.h>
 
 #include "fontIds.h"
 
@@ -18,42 +19,37 @@ void SimpleAppsActivity::onEnter() {
 void SimpleAppsActivity::loadApps() {
   apps.clear();
 
-  fs::File root = SD.open("/home");
-  if (!root || !root.isDirectory()) return;
+  auto dir = Storage.open("/apps");
 
-  fs::File file = root.openNextFile();
+  if (dir && dir.isDirectory()) {
 
-  while (file) {
-    std::string name = file.name();
+    char name[256];
 
-    // Look specifically for apps folder
-    if (name == "apps" && file.isDirectory()) {
+    for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
 
-      fs::File appFile = file.openNextFile();
+      if (file.isDirectory()) continue;
 
-      while (appFile) {
-        if (!appFile.isDirectory()) {
-          std::string fname = appFile.name();
+      file.getName(name, sizeof(name));
 
-          if (fname.find(".simpleapp.json") != std::string::npos) {
-            apps.push_back(fname);
-          }
-        }
-        appFile = file.openNextFile();
+      std::string filename(name);
+
+      if (filename.find(".simpleapp.json") != std::string::npos) {
+        apps.push_back(filename);
       }
     }
-
-    file = root.openNextFile();
   }
 }
 
 bool SimpleAppsActivity::loadApp(const std::string& filename) {
   currentApp.clear();
 
-  std::string fullPath = "/home/apps/" + filename;
+  FsFile file;
 
-  fs::File file = SD.open(fullPath.c_str());
-  if (!file) return false;
+  std::string fullPath = "/apps/" + filename;
+
+  if (!Storage.openFileForRead("APP", fullPath, file)) {
+    return false;
+  }
 
   return !deserializeJson(currentApp, file);
 }
