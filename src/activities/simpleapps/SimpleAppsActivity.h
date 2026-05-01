@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-
+#include <ArduinoJson.hpp>   // REQUIRED
 
 struct SimpleAppEntry{std::string name;std::string path;std::string type;};
 struct SimpleDrawResult{int itemIndex=0;bool reversed=false;};
