@@ -18,22 +18,41 @@ void SimpleAppsActivity::onEnter() {
 void SimpleAppsActivity::loadApps() {
   apps.clear();
 
-  auto files = FileSystem::listDir("/apps");
+  fs::File root = SD.open("/home");
+  if (!root || !root.isDirectory()) return;
 
-  for (auto& file : files) {
-    std::string name = file.name;
+  fs::File file = root.openNextFile();
 
-    if (name.find(".simpleapp.json") != std::string::npos) {
-      apps.push_back(name);
+  while (file) {
+    std::string name = file.name();
+
+    // Look specifically for apps folder
+    if (name == "apps" && file.isDirectory()) {
+
+      fs::File appFile = file.openNextFile();
+
+      while (appFile) {
+        if (!appFile.isDirectory()) {
+          std::string fname = appFile.name();
+
+          if (fname.find(".simpleapp.json") != std::string::npos) {
+            apps.push_back(fname);
+          }
+        }
+        appFile = file.openNextFile();
+      }
     }
+
+    file = root.openNextFile();
   }
 }
 
-bool SimpleAppsActivity::loadApp(const std::string& path) {
+bool SimpleAppsActivity::loadApp(const std::string& filename) {
   currentApp.clear();
 
-  auto file = FileSystem::openFile(path.c_str());
+  std::string fullPath = "/home/apps/" + filename;
 
+  fs::File file = SD.open(fullPath.c_str());
   if (!file) return false;
 
   return !deserializeJson(currentApp, file);
@@ -57,9 +76,7 @@ void SimpleAppsActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
   if (apps.empty()) return;
 
-  std::string path = "/apps/" + apps[selected];
-
-  if (!loadApp(path)) return;
+  if (!loadApp(apps[selected])) return;
 
   std::string type = currentApp["type"] | "";
 
