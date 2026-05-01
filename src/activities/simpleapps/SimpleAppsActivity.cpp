@@ -37,12 +37,32 @@ void SimpleAppsActivity::loadApps() {
 
     std::string filename(name);
 
+<<<<<<< HEAD
       if (filename.find(".simpleapp.json") != std::string::npos) {
-        apps.push_back(filename);
+        std::string clean = filename;
+
+        // remove extension
+        size_t pos = clean.find(".simpleapp.json");
+        if (pos != std::string::npos) {
+          clean = clean.substr(0, pos);
+        }
+
+        // capitalize first letter
+        if (!clean.empty()) {
+          clean[0] = toupper(clean[0]);
+        }
+
+        apps.push_back(clean);;
       }
+=======
+    if (filename.find(".simpleapp.json") != std::string::npos) {
+      apps.push_back(filename);
+>>>>>>> 59b91ce7298f1f7af87ba94f4f12c978ef1e7412
     }
   }
 }
+
+
 
 bool SimpleAppsActivity::loadApp(const std::string& filename) {
   currentApp.clear();
