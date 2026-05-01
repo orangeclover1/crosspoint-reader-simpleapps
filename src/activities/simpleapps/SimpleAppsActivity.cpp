@@ -10,6 +10,8 @@
 
 using namespace ArduinoJson;
 
+static int tarotMode = 0; // 0 = single, 1 = three-card
+
 void SimpleAppsActivity::onEnter() {
   Activity::onEnter();
   loadApps();
@@ -34,7 +36,20 @@ void SimpleAppsActivity::loadApps() {
       std::string filename(name);
 
       if (filename.find(".simpleapp.json") != std::string::npos) {
-        apps.push_back(filename);
+        std::string clean = filename;
+
+        // remove extension
+        size_t pos = clean.find(".simpleapp.json");
+        if (pos != std::string::npos) {
+          clean = clean.substr(0, pos);
+        }
+
+        // capitalize first letter
+        if (!clean.empty()) {
+          clean[0] = toupper(clean[0]);
+        }
+
+        apps.push_back(clean);;
       }
     }
   }
@@ -55,6 +70,11 @@ bool SimpleAppsActivity::loadApp(const std::string& filename) {
 }
 
 void SimpleAppsActivity::loop() {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    finish();
+  return;
+  }
+  
   nav.onNext([this] {
     if (!apps.empty()) {
       selected = (selected + 1) % apps.size();
@@ -122,25 +142,49 @@ void SimpleAppsActivity::loop() {
   else if (type == "random_draw") {
 
     JsonArray items = currentApp["items"];
-    JsonArray modes = currentApp["drawModes"];
-
     bool reversedEnabled = currentApp["allowReversed"] | false;
 
     if (items.size() == 0) return;
 
-    // Default = single card
-    int drawCount = 1;
+    int screenW = renderer.getScreenWidth();
 
-    if (modes.size() > 0) {
-      drawCount = modes[0]["count"] | 1;
+    // =========================
+    // SPREAD OPTIONS
+    // =========================
+    static int spreadIndex = 0;
+
+    const char* spreadNames[] = {
+      "Single Card",
+      "Past / Present / Future",
+      "You / Relationship / Partner",
+      "Mind / Body / Spirit"
+    };
+
+    const char* spreads[][3] = {
+      { "", "", "" },
+      { "Past", "Present", "Future" },
+      { "You", "Relationship", "Partner" },
+      { "Mind", "Body", "Spirit" }
+    };
+
+    int spreadCount = 4;
+
+    // switch spreads
+    if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
+      spreadIndex = (spreadIndex - 1 + spreadCount) % spreadCount;
+      requestUpdate();
     }
 
-    // If more than 1 mode, use second (3-card)
-    if (modes.size() > 1) {
-      drawCount = modes[1]["count"] | 3;
+    if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
+      spreadIndex = (spreadIndex + 1) % spreadCount;
+      requestUpdate();
     }
 
-    // ===== DRAW UNIQUE CARDS =====
+    int drawCount = (spreadIndex == 0) ? 1 : 3;
+
+    // =========================
+    // DRAW CARDS
+    // =========================
     std::vector<int> used;
     std::vector<JsonObject> cards;
     std::vector<bool> reversedFlags;
@@ -157,10 +201,16 @@ void SimpleAppsActivity::loop() {
       reversedFlags.push_back(reversedEnabled && random(2) == 1);
     }
 
-    int screenW = renderer.getScreenWidth();
+    renderer.clearScreen();
 
     // =========================
-    // SINGLE CARD (unchanged)
+    // HEADER
+    // =========================
+    renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 25, "Tiny Tarot", true);
+    renderer.drawCenteredText(UI_12_FONT_ID, 55, spreadNames[spreadIndex], true);
+
+    // =========================
+    // SINGLE CARD
     // =========================
     if (drawCount == 1) {
 
@@ -168,27 +218,28 @@ void SimpleAppsActivity::loop() {
       bool isReversed = reversedFlags[0];
 
       const char* name = card["name"];
-      const char* symbol = card["symbol"];
+      const char* symbol = card["fallbackSymbol"] | card["symbol"];
       const char* meaning = isReversed ? card["reversed"] : card["upright"];
 
-      renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 30, name, true);
+      renderer.drawCenteredText(NOTOSANS_16_FONT_ID, 90, name, true);
 
-      int boxW = 160;
-      int boxH = 200;
+      int boxW = 180;
+      int boxH = 220;
       int boxX = (screenW - boxW) / 2;
-      int boxY = 80;
+      int boxY = 120;
 
       renderer.drawRect(boxX, boxY, boxW, boxH, 2, true);
-      renderer.drawRect(boxX + 8, boxY + 8, boxW - 16, boxH - 16, true);
+      renderer.drawRect(boxX + 10, boxY + 10, boxW - 20, boxH - 20, true);
 
-      int symbolWidth = renderer.getTextWidth(NOTOSANS_18_FONT_ID, symbol);
-      renderer.drawText(NOTOSANS_18_FONT_ID, boxX + (boxW - symbolWidth) / 2, boxY + 70, symbol, true);
+      int sw = renderer.getTextWidth(NOTOSANS_18_FONT_ID, symbol);
+      renderer.drawText(NOTOSANS_18_FONT_ID, boxX + (boxW - sw) / 2, boxY + 80, symbol, true);
 
       if (isReversed) {
         renderer.drawCenteredText(NOTOSANS_12_FONT_ID, boxY + boxH - 30, "Reversed", true);
       }
 
       int y = boxY + boxH + 30;
+
       auto lines = renderer.wrappedText(UI_12_FONT_ID, meaning, screenW - 40, 5);
 
       for (auto& line : lines) {
@@ -202,16 +253,13 @@ void SimpleAppsActivity::loop() {
     // =========================
     else {
 
-      const char* labels[3] = { "Past", "Present", "Future" };
-
-      int cardW = 120;
+      int cardW = 110;
       int cardH = 140;
-      int spacing = 20;
+      int spacing = 18;
 
-      int totalWidth = (cardW * 3) + (spacing * 2);
-      int startX = (screenW - totalWidth) / 2;
-
-      int topY = 90;
+      int totalW = (cardW * 3) + (spacing * 2);
+      int startX = (screenW - totalW) / 2;
+      int topY = 100;
 
       // ===== DRAW CARDS =====
       for (int i = 0; i < 3; i++) {
@@ -221,27 +269,28 @@ void SimpleAppsActivity::loop() {
         JsonObject card = cards[i];
         bool isReversed = reversedFlags[i];
 
-        const char* symbol = card["symbol"];
+        const char* symbol = card["fallbackSymbol"] | card["symbol"];
+        const char* label = spreads[spreadIndex][i];
 
-        // Label
-        renderer.drawCenteredText(UI_12_FONT_ID, topY - 20 + i * 0, labels[i], true);
+        // label
+        int lw = renderer.getTextWidth(UI_12_FONT_ID, label);
+        renderer.drawText(UI_12_FONT_ID, x + (cardW - lw) / 2, topY - 18, label, true);
 
-        // Box
+        // box
         renderer.drawRect(x, topY, cardW, cardH, 2, true);
         renderer.drawRect(x + 6, topY + 6, cardW - 12, cardH - 12, true);
 
-        // Symbol
-        int sw = renderer.getTextWidth(NOTOSANS_18_FONT_ID, symbol);
-        renderer.drawText(NOTOSANS_18_FONT_ID, x + (cardW - sw) / 2, topY + 50, symbol, true);
+        // symbol
+        int sw = renderer.getTextWidth(NOTOSANS_16_FONT_ID, symbol);
+        renderer.drawText(NOTOSANS_16_FONT_ID, x + (cardW - sw) / 2, topY + 55, symbol, true);
 
-        // Reversed marker
         if (isReversed) {
-          renderer.drawCenteredText(NOTOSANS_12_FONT_ID, topY + cardH - 25, "v", true);
+          renderer.drawText(NOTOSANS_12_FONT_ID, x + 45, topY + cardH - 20, "v", true);
         }
       }
 
       // ===== MEANINGS =====
-      int y = topY + cardH + 30;
+      int y = topY + cardH + 25;
 
       for (int i = 0; i < 3; i++) {
 
@@ -251,10 +300,10 @@ void SimpleAppsActivity::loop() {
         const char* name = card["name"];
         const char* meaning = isReversed ? card["reversed"] : card["upright"];
 
-        std::string header = std::string(labels[i]) + ": " + name;
+        std::string header = std::string(spreads[spreadIndex][i]) + ": " + name;
 
         renderer.drawText(NOTOSANS_16_FONT_ID, 20, y, header.c_str(), true);
-        y += 25;
+        y += 24;
 
         auto lines = renderer.wrappedText(UI_12_FONT_ID, meaning, screenW - 40, 2);
 
@@ -263,16 +312,20 @@ void SimpleAppsActivity::loop() {
           y += 20;
         }
 
-        y += 10;
+        y += 12;
       }
     }
+    auto labels = mappedInput.mapLabels("", "Again", "Back", "");
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.displayBuffer();
   }
 
 
   else {
     renderer.drawCenteredText(NOTOSANS_16_FONT_ID, 200, "Unsupported app", true);
   }
-
+  auto labels = mappedInput.mapLabels("", "Confirm", "Back", "");
+  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }
 }
@@ -285,12 +338,36 @@ void SimpleAppsActivity::render(RenderLock&&) {
   if (apps.empty()) {
     renderer.drawCenteredText(NOTOSANS_16_FONT_ID, 120, "No apps found", true);
   } else {
+    int screenW = renderer.getScreenWidth();
+
+    // ===== HEADER =====
+    renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 30, "Apps", true);
+
+    // ===== LIST =====
+    int startY = 100;
+    int itemHeight = 36;
+
     for (int i = 0; i < apps.size(); i++) {
-      int y = 120 + i * 40;
-      std::string line = (i == selected ? "> " : "  ") + apps[i];
-      renderer.drawText(NOTOSANS_16_FONT_ID, 40, y, line.c_str(), true);
+
+      int y = startY + i * itemHeight;
+
+      const char* name = apps[i].c_str();
+
+      // highlight selected
+      if (i == selected) {
+        renderer.drawRect(20, y - 6, screenW - 40, 30, 1, true);
+
+        std::string label = "▶ " + apps[i];
+        renderer.drawText(NOTOSANS_16_FONT_ID, 30, y, label.c_str(), true);
+      } else {
+        renderer.drawText(NOTOSANS_16_FONT_ID, 40, y, name, true);
+      }
+    }
+    
     }
   }
 
+  auto labels = mappedInput.mapLabels("", "Open", "Back", "");
+  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }
