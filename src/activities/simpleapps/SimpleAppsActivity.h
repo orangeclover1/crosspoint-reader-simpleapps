@@ -27,6 +27,7 @@ class SimpleAppsActivity final : public Activity {
   void renderEightBall();
   void renderDaily();
   void renderTarot();
+  void drawTarot();
   void loadApps();
   bool loadApp(const std::string& path);
 };
