@@ -64,7 +64,8 @@ void SimpleAppsActivity::loadApps() {
 
 // COIN
 
-if (type == "coin_flip") {
+void SimpleAppsActivity::renderCoinFlip() {
+  int screenW = renderer.getScreenWidth();
 
   bool heads = random(2) == 0;
 
@@ -72,55 +73,65 @@ if (type == "coin_flip") {
     ? epd_bitmap_coin_heads
     : epd_bitmap_coin_tails;
 
-  renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 40, "Coin Flip", true);
+  renderer.clearScreen();
 
+  // Title
+  renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 30, "Coin Flip", true);
+
+  // Icon
   renderer.drawImage(
     icon,
-    (renderer.getScreenWidth() - 64) / 2,
-    100,
+    (screenW - 64) / 2,
+    90,
     64,
     64
   );
 
+  // Result
   renderer.drawCenteredText(
     NOTOSANS_16_FONT_ID,
-    200,
+    180,
     heads ? "HEADS" : "TAILS",
     true
   );
 }
 
-// 8 BALL
-else if (type == "random_answer") {
+//8 BALL ========
+void SimpleAppsActivity::renderEightBall() {
+  int screenW = renderer.getScreenWidth();
 
   JsonArray arr = currentApp["answers"];
   if (arr.size() == 0) return;
 
-  int idx = random(arr.size());
-  const char* txt = arr[idx];
+  const char* txt = arr[random(arr.size())];
 
+  renderer.clearScreen();
+
+  // Title
   renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 30, "Magic 8 Ball", true);
 
+  // Icon
   renderer.drawImage(
     epd_bitmap_8ball,
-    (renderer.getScreenWidth() - 64) / 2,
-    70,
+    (screenW - 64) / 2,
+    80,
     64,
     64
   );
 
-  int y = 160;
+  // Text
+  int y = 170;
 
   auto lines = renderer.wrappedText(
     UI_12_FONT_ID,
     txt,
-    renderer.getScreenWidth() - 40,
+    screenW - 40,
     4
   );
 
   for (auto& line : lines) {
     renderer.drawText(UI_12_FONT_ID, 20, y, line.c_str(), true);
-    y += 22;
+    y += 24;
   }
 }
 
@@ -161,9 +172,12 @@ void SimpleAppsActivity::renderDaily() {
 //Tarot
 void SimpleAppsActivity::renderTarot() {
   int screenW = renderer.getScreenWidth();
+  int screenH = renderer.getScreenHeight();
 
   JsonArray items = currentApp["items"];
   bool reversedEnabled = currentApp["allowReversed"] | false;
+
+  if (items.size() == 0) return;
 
   const char* spreadNames[] = {
     "Single Card",
@@ -181,7 +195,9 @@ void SimpleAppsActivity::renderTarot() {
 
   int drawCount = (spreadIndex == 0) ? 1 : 3;
 
-  // draw cards
+  // =========================
+  // DRAW UNIQUE CARDS
+  // =========================
   std::vector<int> used;
   std::vector<JsonObject> cards;
   std::vector<bool> reversedFlags;
@@ -196,35 +212,67 @@ void SimpleAppsActivity::renderTarot() {
     reversedFlags.push_back(reversedEnabled && random(2));
   }
 
-  // header
+  renderer.clearScreen();
+
+  // =========================
+  // HEADER
+  // =========================
   renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 20, "Tiny Tarot", true);
   renderer.drawCenteredText(UI_12_FONT_ID, 50, spreadNames[spreadIndex], true);
   renderer.drawLine(20, 70, screenW - 20, 70);
 
+  // =========================
   // SINGLE CARD
+  // =========================
   if (drawCount == 1) {
+
     JsonObject card = cards[0];
     bool rev = reversedFlags[0];
 
     const char* name = card["name"];
     const char* symbol = card["fallbackSymbol"] | card["symbol"];
     const char* meaning = rev ? card["reversed"] : card["upright"];
+    const char* yn = card["yesNo"] | "";
+    const char* element = card["element"] | "";
 
     renderer.drawCenteredText(NOTOSANS_16_FONT_ID, 90, name, true);
 
-    int boxW = 180, boxH = 220;
+    int boxW = 180, boxH = 200;
     int boxX = (screenW - boxW) / 2;
 
-    renderer.drawRect(boxX, 120, boxW, boxH, 2, true);
+    renderer.drawRect(boxX, 110, boxW, boxH, 2, true);
 
     int sw = renderer.getTextWidth(NOTOSANS_18_FONT_ID, symbol);
     renderer.drawText(NOTOSANS_18_FONT_ID,
-      boxX + (boxW - sw)/2, 200, symbol, true);
+      boxX + (boxW - sw) / 2,
+      180,
+      symbol,
+      true
+    );
 
-    int y = 360;
+    int y = 320;
 
-    auto lines = renderer.wrappedText(UI_12_FONT_ID,
-      meaning, screenW - 40, 6);
+    // Metadata
+    std::string meta = std::string(yn) + " • " + element;
+    if (rev) meta += " • REVERSED";
+
+    renderer.drawText(UI_10_FONT_ID, 20, y, meta.c_str(), true);
+    y += 24;
+
+    // Keywords
+    if (card.containsKey("keywords")) {
+      JsonArray kws = card["keywords"];
+      std::string kwLine = "";
+      for (int k = 0; k < kws.size(); k++) {
+        kwLine += kws[k].as<const char*>();
+        if (k < kws.size() - 1) kwLine += ", ";
+      }
+      renderer.drawText(UI_10_FONT_ID, 20, y, kwLine.c_str(), true);
+      y += 24;
+    }
+
+    // Meaning
+    auto lines = renderer.wrappedText(UI_12_FONT_ID, meaning, screenW - 40, 6);
 
     for (auto& line : lines) {
       renderer.drawText(UI_12_FONT_ID, 20, y, line.c_str(), true);
@@ -232,47 +280,63 @@ void SimpleAppsActivity::renderTarot() {
     }
   }
 
+  // =========================
   // THREE CARD
+  // =========================
   else {
-    int cardW = 120, spacing = 12;
-    int startX = (screenW - (cardW*3 + spacing*2)) / 2;
-    int topY = 100;
 
-    for (int i=0;i<3;i++) {
-      int x = startX + i*(cardW+spacing);
+    int cardW = 110, spacing = 12;
+    int startX = (screenW - (cardW * 3 + spacing * 2)) / 2;
+    int topY = 90;
+
+    for (int i = 0; i < 3; i++) {
+      int x = startX + i * (cardW + spacing);
 
       JsonObject card = cards[i];
-      bool rev = reversedFlags[i];
-
       const char* symbol = card["fallbackSymbol"] | card["symbol"];
       const char* label = spreads[spreadIndex][i];
 
       int lw = renderer.getTextWidth(UI_12_FONT_ID, label);
       renderer.drawText(UI_12_FONT_ID,
-        x + (cardW - lw)/2, topY - 18, label, true);
+        x + (cardW - lw) / 2,
+        topY - 18,
+        label,
+        true
+      );
 
-      renderer.drawRect(x, topY, cardW, 140, 2, true);
+      renderer.drawRect(x, topY, cardW, 130, 2, true);
 
       int sw = renderer.getTextWidth(NOTOSANS_16_FONT_ID, symbol);
       renderer.drawText(NOTOSANS_16_FONT_ID,
-        x + (cardW - sw)/2, topY + 55, symbol, true);
+        x + (cardW - sw) / 2,
+        topY + 50,
+        symbol,
+        true
+      );
     }
 
-    int y = topY + 180;
+    int y = topY + 150;
 
-    for (int i=0;i<3;i++) {
+    for (int i = 0; i < 3; i++) {
+
+      if (y > screenH - 40) break;
+
       JsonObject card = cards[i];
       bool rev = reversedFlags[i];
 
       std::string header =
-        std::string(spreads[spreadIndex][i]) + ": " + (const char*)card["name"];
+        std::string(spreads[spreadIndex][i]) + ": " +
+        (const char*)card["name"];
 
       renderer.drawText(NOTOSANS_16_FONT_ID, 20, y, header.c_str(), true);
       y += 24;
 
-      auto lines = renderer.wrappedText(UI_12_FONT_ID,
+      auto lines = renderer.wrappedText(
+        UI_12_FONT_ID,
         rev ? card["reversed"] : card["upright"],
-        screenW - 40, 2);
+        screenW - 40,
+        2
+      );
 
       for (auto& line : lines) {
         renderer.drawText(UI_12_FONT_ID, 30, y, line.c_str(), true);
@@ -302,13 +366,18 @@ bool SimpleAppsActivity::loadApp(const std::string& filename) {
 }
 
 void SimpleAppsActivity::loop() {
-  // Back
+
+  // =========================
+  // BACK BUTTON
+  // =========================
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     finish();
     return;
   }
 
-  // List navigation
+  // =========================
+  // MENU NAVIGATION (Apps list)
+  // =========================
   nav.onNext([this] {
     if (!apps.empty()) {
       selected = (selected + 1) % apps.size();
@@ -323,25 +392,36 @@ void SimpleAppsActivity::loop() {
     }
   });
 
-  // Spread switching (for Tarot)
+  // =========================
+  // TAROT SPREAD SWITCHING
+  // =========================
   if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
     spreadIndex = (spreadIndex - 1 + 4) % 4;
     requestUpdate();
   }
+
   if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
     spreadIndex = (spreadIndex + 1) % 4;
     requestUpdate();
   }
 
-  // Confirm = run current app
+  // =========================
+  // CONFIRM → RUN APP
+  // =========================
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+
     if (apps.empty()) return;
+
+    // Load selected app JSON
     if (!loadApp(apps[selected])) return;
 
     std::string type = currentApp["type"] | "";
 
     renderer.clearScreen();
 
+    // =========================
+    // ROUTING
+    // =========================
     if (type == "coin_flip") {
       renderCoinFlip();
     }
@@ -355,12 +435,29 @@ void SimpleAppsActivity::loop() {
       renderTarot();
     }
     else {
-      renderer.drawCenteredText(NOTOSANS_16_FONT_ID, 200, "Unsupported app", true);
+      renderer.drawCenteredText(
+        NOTOSANS_16_FONT_ID,
+        200,
+        "Unsupported app",
+        true
+      );
     }
 
-    auto labels = mappedInput.mapLabels("", "Again", "Back", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    // =========================
+    // BUTTON HINTS
+    // =========================
+    auto labels = mappedInput.mapLabels("", "Confirm", "Back", "");
+    GUI.drawButtonHints(
+      renderer,
+      labels.btn1,
+      labels.btn2,
+      labels.btn3,
+      labels.btn4
+    );
 
+    // =========================
+    // DISPLAY
+    // =========================
     renderer.displayBuffer();
   }
 }
