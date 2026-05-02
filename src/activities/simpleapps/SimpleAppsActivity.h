@@ -23,6 +23,10 @@ class SimpleAppsActivity final : public Activity {
   void render(RenderLock&&) override;
 
  private:
+  void renderCoinFlip();
+  void renderEightBall();
+  void renderDaily();
+  void renderTarot();
   void loadApps();
   bool loadApp(const std::string& path);
 };

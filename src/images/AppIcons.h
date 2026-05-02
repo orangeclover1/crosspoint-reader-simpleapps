@@ -87,7 +87,7 @@ const unsigned char epd_bitmap_tarot [] PROGMEM = {
 
 
 // 'app_mainimg', 74x75px
-const unsigned char epd_bitmap_app_mainimage [] PROGMEM = {
+const unsigned char epd_bitmap_resized_image[] PROGMEM = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
 	0xff, 0xff, 0xff, 0xc0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0, 0xff, 0xff, 
 	0xff, 0xfe, 0x00, 0x1f, 0xff, 0xff, 0xff, 0xc0, 0xff, 0xff, 0xff, 0x8f, 0xff, 0xfe, 0x7f, 0xff, 
@@ -137,24 +137,6 @@ const unsigned char epd_bitmap_app_mainimage [] PROGMEM = {
 	0xff, 0xff, 0xff, 0xc0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc0
 };
 
-// Array of all bitmaps for convenience. (Total bytes used to store images in PROGMEM = 768)
-const int epd_bitmap_allArray_LEN = 1;
-const unsigned char* epd_bitmap_allArray[1] = {
-	epd_bitmap_resized_image
-};
 
 
 
-// Array of all bitmaps for convenience. (Total bytes used to store images in PROGMEM = 1152)
-const int epd_bitmap_allArray_LEN = 7;
-const unsigned char* epd_bitmap_allArray[7] = {
-	epd_bitmap_8ball,
-	epd_bitmap_cat,
-	epd_bitmap_coin_heads,
-	epd_bitmap_coin_tails,
-	epd_bitmap_journal,
-	epd_bitmap_star,
-	epd_bitmap_tarot,
-    epd_bitmap_app_mainimage
-
-};
