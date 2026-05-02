@@ -15,11 +15,12 @@ using namespace ArduinoJson;
 
 
 static int spreadIndex = 0;
-static bool inAppView = false;
+
 static std::vector<ArduinoJson::JsonObject> tarotCards;
 static std::vector<bool> tarotReversed;
 static bool tarotHasDraw = false;
 static int scrollOffset = 0;
+static bool tarotSelecting = true;
 
 void SimpleAppsActivity::onEnter() {
   Activity::onEnter();
@@ -154,23 +155,32 @@ void SimpleAppsActivity::renderDaily() {
 
   renderer.clearScreen();
 
-  renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 30, "Daily", true);
+  // ICON
+  renderer.drawImage(
+    epd_bitmap_resized_image,
+    (screenW - 48) / 2,
+    20,
+    48,
+    48
+  );
 
-  int y = 80;
+  renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 80, "Daily", true);
+
+  int y = 120;
 
   auto drawSection = [&](const char* title, const char* text) {
 
     renderer.drawText(NOTOSANS_16_FONT_ID, 20, y, title, true);
-    y += 26;
+    y += 30;
 
     auto lines = renderer.wrappedText(UI_12_FONT_ID, text, screenW - 40, 4);
 
     for (auto& line : lines) {
       renderer.drawText(UI_12_FONT_ID, 20, y, line.c_str(), true);
-      y += 22;
+      y += 26;
     }
 
-    y += 16;
+    y += 20;
   };
 
   drawSection("Prompt", pt);
@@ -178,10 +188,12 @@ void SimpleAppsActivity::renderDaily() {
   drawSection("Gratitude", tt);
 }
 
+
 //Tarot
 void SimpleAppsActivity::drawTarot() {
 
-  JsonArray items = currentApp["items"];
+  JsonArray items = currentApp["items"].as<JsonArray>();
+  if (items.isNull()) return;
   bool reversedEnabled = currentApp["allowReversed"] | false;
 
   tarotCards.clear();
@@ -217,7 +229,8 @@ void SimpleAppsActivity::renderTarot() {
     "Single Card",
     "Past / Present / Future",
     "You / Relationship / Partner",
-    "Mind / Body / Spirit"
+    "Mind / Body / Spirit",
+    "Celtic Cross"
   };
 
   const char* spreads[][3] = {
@@ -227,21 +240,76 @@ void SimpleAppsActivity::renderTarot() {
     {"Mind","Body","Spirit"}
   };
 
-  int drawCount = (spreadIndex == 0) ? 1 : 3;
+  const char* celticLabels[10] = {
+    "Present",
+    "Challenge",
+    "Past",
+    "Future",
+    "Above",
+    "Below",
+    "Advice",
+    "External",
+    "Hopes/Fears",
+    "Outcome"
+  };
+
+  // =========================
+  // DETERMINE DRAW COUNT
+  // =========================
+  int drawCount;
+  if (spreadIndex == 0) drawCount = 1;
+  else if (spreadIndex == 4) drawCount = 10;
+  else drawCount = 3;
 
   renderer.clearScreen();
 
-  // HEADER
-  renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 20, "Tiny Tarot", true);
-  renderer.drawCenteredText(NOTOSANS_16_FONT_ID, 50, spreadNames[spreadIndex], true);
-  renderer.drawLine(20, 70, screenW - 20, 70);
+  // =========================
+  // SELECTION SCREEN (VERTICAL LIST)
+  // =========================
+  if (tarotSelecting) {
 
-  // NO DRAW YET
-  if (!tarotHasDraw) {
-    renderer.drawCenteredText(NOTOSANS_16_FONT_ID, 140, "Press Confirm to Draw", true);
-    renderer.drawCenteredText(UI_12_FONT_ID, 170, "< > change spread", true);
+    renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 30, "Select Spread", true);
+
+    int startY = 90;
+    int itemHeight = 36;
+
+    for (int i = 0; i < 5; i++) {
+
+      int y = startY + i * itemHeight;
+
+      std::string label = spreadNames[i];
+
+      if (i == spreadIndex) {
+        std::string line = "> " + label;
+        renderer.drawText(NOTOSANS_16_FONT_ID, 30, y, line.c_str(), true);
+      } else {
+        renderer.drawText(NOTOSANS_16_FONT_ID, 40, y, label.c_str(), true);
+      }
+    }
+
+    renderer.drawCenteredText(
+      UI_12_FONT_ID,
+      screenH - 20,
+      "Up/Down move • Confirm select",
+      true
+    );
+
     return;
   }
+
+  // =========================
+  // SAFETY CHECK
+  // =========================
+  if (!tarotHasDraw || tarotCards.empty()) {
+    return;
+  }
+
+  // =========================
+  // HEADER
+  // =========================
+  renderer.drawCenteredText(NOTOSANS_18_FONT_ID, 24, "Tiny Tarot", true);
+  renderer.drawCenteredText(NOTOSANS_16_FONT_ID, 50, spreadNames[spreadIndex], true);
+  renderer.drawLine(20, 70, screenW - 20, 70);
 
   // =========================
   // CARD AREA
@@ -269,7 +337,7 @@ void SimpleAppsActivity::renderTarot() {
 
     cardAreaBottom = boxY + boxH;
   }
-  else {
+  else if (drawCount == 3) {
 
     int cardW = 110;
     int spacing = 12;
@@ -307,15 +375,18 @@ void SimpleAppsActivity::renderTarot() {
 
     cardAreaBottom = topY + 140;
   }
+  else {
+    // Celtic Cross (no visuals)
+    cardAreaBottom = 80;
+  }
 
   // =========================
   // TEXT AREA (SCROLL)
   // =========================
-  int baseY = cardAreaBottom + 30;
+  int baseY = cardAreaBottom + 35;
   int y = baseY - scrollOffset;
   int maxY = screenH - 20;
 
-  // Divider above text
   renderer.drawLine(20, baseY - 10, screenW - 20, baseY - 10);
 
   for (int i = 0; i < drawCount; i++) {
@@ -328,15 +399,22 @@ void SimpleAppsActivity::renderTarot() {
     const char* yn = card["yesNo"] | "";
     const char* element = card["element"] | "";
 
-    std::string header =
-      (drawCount == 1)
-        ? std::string(name)
-        : std::string(spreads[spreadIndex][i]) + ": " + name;
+    std::string header;
+
+    if (drawCount == 1) {
+      header = std::string(name);
+    }
+    else if (drawCount == 3) {
+      header = std::string(spreads[spreadIndex][i]) + ": " + name;
+    }
+    else {
+      header = std::string(celticLabels[i]) + ": " + name;
+    }
 
     if (y > 0 && y < maxY)
       renderer.drawText(NOTOSANS_16_FONT_ID, 20, y, header.c_str(), true);
 
-    y += 26;
+    y += 30;
 
     std::string meta = std::string(yn) + " • " + element;
     if (rev) meta += " • REVERSED";
@@ -344,9 +422,9 @@ void SimpleAppsActivity::renderTarot() {
     if (y > 0 && y < maxY)
       renderer.drawText(UI_10_FONT_ID, 30, y, meta.c_str(), true);
 
-    y += 22;
+    y += 24;
 
-    if (card.containsKey("keywords")) {
+    if (card["keywords"].is<JsonArray>()) {
       JsonArray kws = card["keywords"];
 
       std::string kwLine = "";
@@ -358,7 +436,7 @@ void SimpleAppsActivity::renderTarot() {
       if (y > 0 && y < maxY)
         renderer.drawText(UI_10_FONT_ID, 30, y, kwLine.c_str(), true);
 
-      y += 20;
+      y += 24;
     }
 
     auto lines = renderer.wrappedText(
@@ -371,24 +449,25 @@ void SimpleAppsActivity::renderTarot() {
     for (auto& line : lines) {
       if (y > 0 && y < maxY)
         renderer.drawText(UI_12_FONT_ID, 30, y, line.c_str(), true);
-      y += 22;
+      y += 26;
     }
 
     if (i < drawCount - 1) {
-      y += 10;
+      y += 12;
       if (y > 0 && y < maxY)
         renderer.drawLine(20, y, screenW - 20, y);
-      y += 16;
+      y += 18;
     }
   }
 
   renderer.drawCenteredText(
     UI_10_FONT_ID,
     screenH - 10,
-    "↑ ↓ scroll • Confirm = redraw",
+    "↑ ↓ scroll • Confirm redraw • Back",
     true
   );
 }
+
 
 // App Loop ===============================
 
@@ -413,6 +492,15 @@ void SimpleAppsActivity::loop() {
   // BACK BUTTON
   // =========================
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+
+    // Tarot: go back to selection
+    if (tarotHasDraw && !tarotSelecting) {
+      tarotSelecting = true;
+      tarotHasDraw = false;
+      requestUpdate();
+      return;
+    }
+
     finish();
     return;
   }
@@ -423,6 +511,11 @@ void SimpleAppsActivity::loop() {
   nav.onNext([this] {
     if (!apps.empty()) {
       selected = (selected + 1) % apps.size();
+
+      tarotHasDraw = false;
+      tarotSelecting = true;
+      scrollOffset = 0;
+
       requestUpdate();
     }
   });
@@ -430,27 +523,35 @@ void SimpleAppsActivity::loop() {
   nav.onPrevious([this] {
     if (!apps.empty()) {
       selected = (selected - 1 + apps.size()) % apps.size();
+
+      tarotHasDraw = false;
+      tarotSelecting = true;
+      scrollOffset = 0;
+
       requestUpdate();
     }
   });
 
   // =========================
-  // TAROT SPREAD SWITCHING
+  // TAROT SPREAD SELECTION (Up/Down)
   // =========================
-  if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
-    spreadIndex = (spreadIndex - 1 + 4) % 4;
-    requestUpdate();
+  if (tarotSelecting) {
+
+    if (mappedInput.wasReleased(MappedInputManager::Button::Up)) {
+      spreadIndex = (spreadIndex - 1 + 5) % 5;
+      requestUpdate();
+    }
+
+    if (mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+      spreadIndex = (spreadIndex + 1) % 5;
+      requestUpdate();
+    }
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
-    spreadIndex = (spreadIndex + 1) % 4;
-    requestUpdate();
-  }
-
   // =========================
-  // SCROLL (ONLY FOR TAROT)
+  // SCROLL (only after draw)
   // =========================
-  if (tarotHasDraw) {
+  if (tarotHasDraw && !tarotSelecting) {
 
     if (mappedInput.wasReleased(MappedInputManager::Button::Up)) {
       scrollOffset -= 20;
@@ -475,17 +576,8 @@ void SimpleAppsActivity::loop() {
 
     std::string type = currentApp["type"] | "";
 
-    // RESET TAROT WHEN LEAVING
-    if (type != "random_draw") {
-      tarotHasDraw = false;
-      scrollOffset = 0;
-      tarotCards.clear();
-      tarotReversed.clear();
-    }
-
     renderer.clearScreen();
 
-    // ROUTING
     if (type == "coin_flip") {
       renderCoinFlip();
     }
@@ -497,7 +589,15 @@ void SimpleAppsActivity::loop() {
     }
     else if (type == "random_draw") {
 
-      if (!tarotHasDraw) {
+      // First confirm → leave selection
+      if (tarotSelecting) {
+        tarotSelecting = false;
+        tarotHasDraw = false;
+        drawTarot();
+      }
+      else {
+        // redraw
+        tarotHasDraw = false;
         drawTarot();
       }
 
@@ -512,7 +612,6 @@ void SimpleAppsActivity::loop() {
       );
     }
 
-    // BUTTON HINTS
     auto labels = mappedInput.mapLabels("", "Confirm", "Back", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
@@ -547,9 +646,7 @@ void SimpleAppsActivity::render(RenderLock&&) {
       }
 
       if (i == selected) {
-        renderer.drawRect(20, y - 6, screenW - 40, 30, 1, true);
-
-        std::string label = "▶ " + display;
+        std::string label = ">" + display;
         renderer.drawText(NOTOSANS_16_FONT_ID, 30, y, label.c_str(), true);
       } else {
         renderer.drawText(NOTOSANS_16_FONT_ID, 40, y, display.c_str(), true);
